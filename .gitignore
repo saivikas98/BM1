@@ -1,0 +1,11 @@
+# Python virtual environments
+venv/
+env/
+__pycache__/
+
+# Streamlit specific
+.streamlit/
+
+# OS generated files
+.DS_Store
+Thumbs.db
