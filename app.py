@@ -2,6 +2,7 @@ import streamlit as st
 import deepxde as dde
 import numpy as np
 import matplotlib.pyplot as plt
+import torch
 import os
 
 st.set_page_config(
@@ -11,17 +12,18 @@ st.set_page_config(
 
 @st.cache_resource
 def load_digital_twin():
-    """Rebuilds the architecture and loads the trained PyTorch weights."""
-    import torch # Ensure torch is imported
-    
+    """Rebuilds the architecture and loads the trained PyTorch weights natively."""
     # 4 Inputs (x, y, t, RPM) -> 3 Hidden Layers -> 5 Outputs (u, v, p, phi, D90)
     net = dde.nn.FNN([4] + [40] * 3 + [5], "tanh", "Glorot normal")
     model = dde.Model(data=None, net=net)
     
-    weights_path = "models/beadmill_pinn_weights.pt"
+    # Use absolute path to ensure Streamlit Cloud finds the file
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    weights_path = os.path.join(BASE_DIR, "models", "beadmill_pinn_weights.pt")
+    
     if os.path.exists(weights_path):
         # Load the raw PyTorch state dict directly into the network
-        # map_location='cpu' ensures it runs on Streamlit Cloud even without a GPU
+        # map_location='cpu' ensures it runs on cloud environments without GPUs
         state_dict = torch.load(weights_path, map_location=torch.device('cpu'))
         model.net.load_state_dict(state_dict)
         return model
@@ -53,8 +55,18 @@ if run_sim:
             rpm_array = np.full_like(radii, target_rpm)
             X_infer = np.hstack((radii, y_coords, t_array, rpm_array))
             
-            # Forward pass inference
-            predictions = model.predict(X_infer)
+            # --- BYPASS DEEPXDE AND USE NATIVE PYTORCH INFERENCE ---
+            # 1. Convert the float64 numpy array to a float32 PyTorch tensor
+            X_tensor = torch.tensor(X_infer, dtype=torch.float32)
+            
+            # 2. Run the forward pass without tracking gradients (saves memory & avoids TypeError)
+            with torch.no_grad():
+                predictions_tensor = model.net(X_tensor)
+                
+            # 3. Convert the resulting tensor back to a numpy array for plotting
+            predictions = predictions_tensor.cpu().numpy()
+            # -------------------------------------------------------
+            
             predicted_D90 = predictions[:, 4]
             final_D90 = predicted_D90[-1]
             
