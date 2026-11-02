@@ -16,7 +16,7 @@ def load_digital_twin():
     net = dde.nn.FNN([4] + [40] * 3 + [5], "tanh", "Glorot normal")
     model = dde.Model(data=None, net=net)
     
-    weights_path = "beadmill_pinn_weights.pt"
+    weights_path = "models/beadmill_pinn_weights.pt"
     if os.path.exists(weights_path):
         model.restore(weights_path, verbose=0)
         return model
