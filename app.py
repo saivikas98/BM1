@@ -12,13 +12,18 @@ st.set_page_config(
 @st.cache_resource
 def load_digital_twin():
     """Rebuilds the architecture and loads the trained PyTorch weights."""
+    import torch # Ensure torch is imported
+    
     # 4 Inputs (x, y, t, RPM) -> 3 Hidden Layers -> 5 Outputs (u, v, p, phi, D90)
     net = dde.nn.FNN([4] + [40] * 3 + [5], "tanh", "Glorot normal")
     model = dde.Model(data=None, net=net)
     
     weights_path = "models/beadmill_pinn_weights.pt"
     if os.path.exists(weights_path):
-        model.restore(weights_path, verbose=0)
+        # Load the raw PyTorch state dict directly into the network
+        # map_location='cpu' ensures it runs on Streamlit Cloud even without a GPU
+        state_dict = torch.load(weights_path, map_location=torch.device('cpu'))
+        model.net.load_state_dict(state_dict)
         return model
     else:
         return None
